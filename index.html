@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SWP09 英文聽讀 APP (絕美升級版)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+    
+    body {
+      font-family: 'Nunito', 'Noto Sans TC', sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); /* 深灰黑色漸層 */
+      min-height: 100vh;
+      background-attachment: fixed;
+    }
+
+    .glass-panel {
+      background: rgba(30, 41, 59, 0.7); /* 深色毛玻璃 */
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+    }
+
+    /* 錄音中狀態的紅光脈衝動畫 (適應暗色) */
+    @keyframes pulse-red {
+      0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); border-color: rgba(220, 38, 38, 0.8); }
+      70% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); border-color: rgba(220, 38, 38, 1); }
+      100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); border-color: rgba(220, 38, 38, 0.8); }
+    }
+    .card-recording {
+      animation: pulse-red 2s infinite;
+      background: linear-gradient(to bottom right, rgba(30, 41, 59, 0.9), rgba(69, 10, 10, 0.7));
+    }
+
+    /* 答對狀態的綠光高亮 (適應暗色) */
+    .card-correct {
+      border-color: #22c55e;
+      background: linear-gradient(to bottom right, rgba(30, 41, 59, 0.9), rgba(20, 83, 45, 0.6));
+      box-shadow: 0 4px 20px rgba(34, 197, 94, 0.15);
+    }
+
+    /* 答錯狀態的紅光高亮 (適應暗色) */
+    .card-wrong {
+      border-color: #f43f5e;
+      background: linear-gradient(to bottom right, rgba(30, 41, 59, 0.9), rgba(136, 19, 55, 0.6));
+    }
+
+    /* 音波震動動畫模擬 */
+    @keyframes wave {
+      0%, 100% { height: 4px; }
+      50% { height: 16px; }
+    }
+    .waveform-bar {
+      width: 4px;
+      background-color: #f87171;
+      border-radius: 999px;
+      display: inline-block;
+      margin: 0 2px;
+      animation: wave 1s ease-in-out infinite;
+    }
+    .waveform-bar:nth-child(2) { animation-delay: 0.1s; }
+    .waveform-bar:nth-child(3) { animation-delay: 0.2s; }
+    .waveform-bar:nth-child(4) { animation-delay: 0.3s; }
+    .waveform-bar:nth-child(5) { animation-delay: 0.4s; }
+
+    /* 隱藏捲軸但保持可滾動 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="text-slate-100 pb-20">
+
+  <div class="max-w-6xl mx-auto px-4 pt-8">
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+      <div>
+        <h1 class="text-3xl md:text-4xl font-extrabold text-slate-100 flex items-center gap-3">
+          <span class="text-4xl">🎧🎤</span> SWP09 英文聽讀 APP
+        </h1>
+        <p class="text-slate-400 mt-2 font-medium">點擊『播放發音』聆聽標準讀音，再按下『開始跟讀』測試你的發音準確度！</p>
+      </div>
+    </header>
+
+    <!-- 系統訊息提示區 (瀏覽器不支援時顯示) -->
+    <div id="system-msg" class="hidden mb-6 bg-yellow-900/50 border-l-4 border-yellow-500 text-yellow-200 p-4 rounded shadow-sm" role="alert">
+      <p class="font-bold">⚠️ 注意</p>
+      <p>您的瀏覽器不完整支援 Web Speech API 語音辨識功能，請使用 <strong>Chrome</strong> 或 <strong>Edge</strong> 獲得最佳體驗。</p>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <!-- 總次數 -->
+      <div class="glass-panel rounded-2xl p-6 flex flex-col justify-between">
+        <div class="flex items-center gap-2 text-slate-400 font-bold mb-2">
+          <span>🔥</span> 總練習次數
+        </div>
+        <div class="text-5xl font-black text-slate-100" id="stat-total">0</div>
+        <div class="text-sm text-slate-500 font-medium mt-2">今日進度持續增加中</div>
+      </div>
+      <!-- 念對 -->
+      <div class="glass-panel rounded-2xl p-6 flex flex-col justify-between bg-gradient-to-br from-slate-800/60 to-green-900/30">
+        <div class="flex items-center gap-2 text-green-400 font-bold mb-2">
+          <div class="w-3 h-3 rounded-full bg-green-500"></div> 唸對次數
+        </div>
+        <div class="flex justify-between items-end">
+          <div class="text-5xl font-black text-green-400" id="stat-correct">0</div>
+          <div class="text-2xl opacity-80">😁</div>
+        </div>
+        <div class="text-sm text-green-500/70 font-medium mt-2">Excellent!</div>
+      </div>
+      <!-- 念錯 -->
+      <div class="glass-panel rounded-2xl p-6 flex flex-col justify-between bg-gradient-to-br from-slate-800/60 to-red-900/30">
+        <div class="flex items-center gap-2 text-red-400 font-bold mb-2">
+          <div class="w-3 h-3 rounded-full bg-red-500"></div> 唸錯次數
+        </div>
+        <div class="flex justify-between items-end">
+          <div class="text-5xl font-black text-red-400" id="stat-wrong">0</div>
+          <div class="text-2xl opacity-80">📣</div>
+        </div>
+        <div class="text-sm text-red-500/70 font-medium mt-2">🏆 Keep Trying</div>
+      </div>
+      <!-- 正確率 -->
+      <div class="glass-panel rounded-2xl p-6 flex flex-col items-center justify-center relative">
+        <div class="text-slate-400 font-bold mb-4 w-full text-left flex items-center gap-2">
+          <span>🎯</span> 發音正確率
+        </div>
+        <div class="relative flex items-center justify-center w-28 h-28">
+          <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+            <path class="text-slate-700" stroke-dasharray="100, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke="currentColor" stroke-width="3" fill="none" />
+            <path id="accuracy-circle" class="text-slate-300 transition-all duration-500 ease-out" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke="currentColor" stroke-width="3" fill="none" />
+          </svg>
+          <div class="absolute text-2xl font-black text-slate-100" id="stat-accuracy">0%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls Bar -->
+    <div class="glass-panel rounded-2xl p-4 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-2 overflow-x-auto no-scrollbar w-full md:w-auto">
+        <button class="px-5 py-2 rounded-full bg-slate-800 shadow-sm font-bold text-slate-300 border border-slate-700 whitespace-nowrap">🔥 常用單字與片語</button>
+      </div>
+
+      <div class="flex items-center gap-6 w-full md:w-auto justify-end">
+        <div class="flex items-center gap-2">
+          <label class="text-sm font-bold text-slate-400 whitespace-nowrap">🗣️ 朗讀語速</label>
+          <input type="range" id="rate-slider" min="0.5" max="1.5" step="0.1" value="1.0" class="w-24 accent-slate-400">
+          <span id="rate-display" class="text-sm font-bold w-8 text-right text-slate-300">1.0x</span>
+        </div>
+        <button onclick="resetStats()" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold transition flex items-center gap-2 text-sm border border-slate-600 shadow-md">
+          🔄 重置統計
+        </button>
+      </div>
+    </div>
+
+    <!-- Word List Grid -->
+    <div id="word-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <!-- 內容由 JS 動態生成 -->
+    </div>
+
+    <!-- Pagination & Progress -->
+    <div class="flex flex-col md:flex-row justify-between items-center gap-4 glass-panel rounded-2xl p-4">
+      <div class="flex items-center gap-2 flex-wrap" id="pagination">
+        <!-- 分頁按鈕由 JS 生成 -->
+      </div>
+      <div class="flex items-center gap-3 w-full md:w-1/3 mt-4 md:mt-0">
+        <span class="text-sm font-bold text-slate-400 whitespace-nowrap">挑戰進度：<span id="progress-text">0%</span></span>
+        <div class="h-2 w-full bg-slate-700 rounded-full overflow-hidden flex">
+          <div id="progress-bar" class="h-full bg-slate-400 transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 100個單字與片語資料庫
+    const baseVocabulary = [
+      { id: 1, en: "Artificial Intelligence", ph: "/ˌɑːrtɪˈfɪʃl ɪnˈtelɪdʒəns/", zh: "人工智慧" },
+      { id: 2, en: "Perseverance", ph: "/ˌpɜːrsəˈvɪrəns/", zh: "毅力；堅持不懈" },
+      { id: 3, en: "Piece of cake", ph: "/piːs əv keɪk/", zh: "輕而易舉的事" },
+      { id: 4, en: "Sustainable", ph: "/səˈsteɪnəbl/", zh: "永續的；可持續的" },
+      { id: 5, en: "Procrastination", ph: "/prəˌkræstɪˈneɪʃn/", zh: "拖延症" },
+      { id: 6, en: "Break a leg", ph: "/breɪk ə leɡ/", zh: "祝你好運" },
+      { id: 7, en: "Innovation", ph: "/ˌɪnəˈveɪʃn/", zh: "創新" },
+      { id: 8, en: "Under the weather", ph: "/ˈʌndər ðə ˈweðər/", zh: "身體不適" },
+      { id: 9, en: "Brainstorming", ph: "/ˈbreɪnstɔːrmɪŋ/", zh: "腦力激盪" },
+      { id: 10, en: "Bite the bullet", ph: "/baɪt ðə ˈbʊlɪt/", zh: "硬著頭皮做" }
+    ];
+
+    // 產生剩下的單字，湊滿 100 個作為示範
+    const extraWords = Array.from({ length: 90 }).map((_, i) => ({
+      id: i + 11,
+      en: ["Amazing", "Beautiful", "Challenge", "Determine", "Environment", "Fascinating", "Gorgeous", "Harmony", "Incredible", "Journey"][i % 10] + ` Word ${i+11}`,
+      ph: "/'sæmpəl/",
+      zh: `測試單字 ${i+11}`
+    }));
+
+    const vocabularyList = [...baseVocabulary, ...extraWords];
+
+    // 應用程式狀態管理
+    let state = {
+      total: 0,
+      correct: 0,
+      wrong: 0,
+      currentPage: 1,
+      itemsPerPage: 9, // 每頁顯示 9 個單字卡片
+      recordingId: null, // 當前正在錄音的單字ID
+      results: {} // 記錄每個單字的狀態: 'correct', 'wrong'
+    };
+
+    let recognition = null;
+    let currentTargetText = ""; // 當前要求辨識的文字
+    
+    function initSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        
+        recognition.onresult = handleRecognitionResult;
+        recognition.onerror = handleRecognitionError;
+        recognition.onend = handleRecognitionEnd;
+      } else {
+        document.getElementById('system-msg').classList.remove('hidden');
+      }
+    }
+
+    function updateDashboard() {
+      document.getElementById('stat-total').textContent = state.total;
+      document.getElementById('stat-correct').textContent = state.correct;
+      document.getElementById('stat-wrong').textContent = state.wrong;
+      
+      const accuracy = state.total === 0 ? 0 : Math.round((state.correct / state.total) * 100);
+      document.getElementById('stat-accuracy').textContent = `${accuracy}%`;
+      document.getElementById('accuracy-circle').setAttribute('stroke-dasharray', `${accuracy}, 100`);
+
+      // 更新進度條
+      const progress = Math.round((Object.keys(state.results).length / vocabularyList.length) * 100);
+      document.getElementById('progress-text').textContent = `${progress}%`;
+      document.getElementById('progress-bar').style.width = `${progress}%`;
+    }
+
+    function renderApp() {
+      const start = (state.currentPage - 1) * state.itemsPerPage;
+      const end = start + state.itemsPerPage;
+      const currentWords = vocabularyList.slice(start, end);
+      
+      const grid = document.getElementById('word-grid');
+      grid.innerHTML = '';
+
+      currentWords.forEach(word => {
+        const isRecording = state.recordingId === word.id;
+        const result = state.results[word.id]; // 'correct' 或是 'wrong'
+        
+        let cardClass = "glass-panel rounded-2xl p-5 border-2 border-transparent transition-all duration-300 flex flex-col h-full";
+        if (isRecording) cardClass += " card-recording";
+        else if (result === 'correct') cardClass += " card-correct";
+        else if (result === 'wrong') cardClass += " card-wrong";
+
+        // 辨識結果區塊
+        let feedbackHtml = `
+          <div class="mt-auto pt-4 border-t border-slate-700/50 flex justify-between items-center text-sm">
+            <span class="text-slate-500 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-slate-600 inline-block"></span> 尚未跟讀練習
+            </span>
+            <span class="px-3 py-1 bg-slate-800 border border-slate-700 text-slate-400 rounded-full font-bold">⚪ 等待中</span>
+          </div>`;
+          
+        if (isRecording) {
+          feedbackHtml = `
+          <div class="mt-auto pt-4 border-t border-slate-700/50 flex flex-col gap-2">
+            <div class="flex justify-center text-red-400 h-4">
+              <div class="waveform-bar"></div><div class="waveform-bar"></div><div class="waveform-bar"></div><div class="waveform-bar"></div><div class="waveform-bar"></div>
+            </div>
+            <div class="flex justify-between items-center text-sm text-red-400 font-bold">
+              <span>🎙️ 請大聲讀出此單字...</span>
+              <span class="px-3 py-1 bg-red-900/50 text-red-300 rounded-full animate-pulse border border-red-800">⏳ 辨識中</span>
+            </div>
+          </div>`;
+        } else if (result === 'correct') {
+          feedbackHtml = `
+          <div class="mt-auto pt-4 border-t border-green-800/50 flex flex-col gap-2 text-sm">
+            <div class="flex justify-between items-center text-green-400 font-bold">
+              <span>✅ 唸對了！(Excellent!)</span>
+            </div>
+            <div class="text-green-500/80">辨識成功，發音標準。</div>
+          </div>`;
+        } else if (result === 'wrong') {
+          feedbackHtml = `
+          <div class="mt-auto pt-4 border-t border-red-800/50 flex flex-col gap-2 text-sm">
+            <div class="flex justify-between items-center text-red-400 font-bold">
+              <span>❌ 唸錯了</span>
+              <span class="px-3 py-1 bg-red-900/50 text-red-300 rounded-full border border-red-800">再試一次</span>
+            </div>
+            <div class="text-red-400/80">發音不夠精確，請重新挑戰。</div>
+          </div>`;
+        }
+
+        // 語音按鈕
+        const btnSpeakHtml = isRecording 
+          ? `<button onclick="stopRecording()" class="flex-1 bg-red-900/80 border border-red-700 text-red-100 px-3 py-2 rounded-xl font-bold flex items-center justify-center gap-1 shadow-md hover:bg-red-800 transition">
+              <div class="w-3 h-3 bg-red-200 rounded-sm"></div> 停止
+             </button>`
+          : `<button onclick="startRecording(${word.id})" class="flex-1 bg-slate-700 border border-slate-600 text-slate-100 px-3 py-2 rounded-xl font-bold flex items-center justify-center gap-1 shadow-md hover:bg-slate-600 transition">
+              🎤 開始跟讀
+             </button>`;
+
+        const html = `
+          <div class="${cardClass}">
+            <div class="flex justify-between items-start mb-2">
+              <div>
+                <h3 class="text-xl font-black text-slate-100 tracking-tight">${word.en}</h3>
+                <p class="text-slate-400 font-medium text-sm mt-1">${word.ph}</p>
+              </div>
+            </div>
+            <p class="text-slate-300 font-bold mb-5">${word.zh}</p>
+            
+            <div class="flex gap-2 mb-4">
+              <button onclick="playAudio(${word.id})" class="flex-1 bg-slate-800/80 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white px-3 py-2 rounded-xl font-bold transition flex items-center justify-center gap-1">
+                🔊 播放發音
+              </button>
+              ${btnSpeakHtml}
+            </div>
+            ${feedbackHtml}
+          </div>
+        `;
+        grid.insertAdjacentHTML('beforeend', html);
+      });
+
+      renderPagination();
+    }
+
+    function renderPagination() {
+      const totalPages = Math.ceil(vocabularyList.length / state.itemsPerPage);
+      const pag = document.getElementById('pagination');
+      pag.innerHTML = '';
+
+      // 上一頁按鈕
+      pag.innerHTML += `
+        <button onclick="changePage(${state.currentPage - 1})" ${state.currentPage === 1 ? 'disabled' : ''} 
+          class="px-3 py-1 rounded-lg ${state.currentPage === 1 ? 'text-slate-600' : 'text-slate-400 hover:bg-slate-700'} font-bold transition flex items-center">
+          <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg> 上一頁
+        </button>
+      `;
+
+      // 頁碼 (確保最多顯示 5 個數字以防跑版)
+      const maxPagesToShow = 5;
+      let startP = Math.max(1, state.currentPage - 2);
+      let endP = Math.min(totalPages, startP + maxPagesToShow - 1);
+      
+      if (endP - startP + 1 < maxPagesToShow) {
+        startP = Math.max(1, endP - maxPagesToShow + 1);
+      }
+
+      for (let i = startP; i <= endP; i++) {
+        const activeClass = i === state.currentPage 
+          ? "bg-slate-600 text-white shadow-md border border-slate-500" 
+          : "text-slate-400 hover:bg-slate-700 bg-slate-800/80 border border-slate-700";
+        pag.innerHTML += `<button onclick="changePage(${i})" class="w-8 h-8 rounded-lg font-bold flex items-center justify-center transition ${activeClass}">${i}</button>`;
+      }
+
+      // 下一頁按鈕
+      pag.innerHTML += `
+        <button onclick="changePage(${state.currentPage + 1})" ${state.currentPage === totalPages ? 'disabled' : ''} 
+          class="px-3 py-1 rounded-lg ${state.currentPage === totalPages ? 'text-slate-600' : 'text-slate-400 hover:bg-slate-700'} font-bold transition flex items-center">
+          下一頁 <svg class="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+        </button>
+      `;
+    }
+
+    function changePage(page) {
+      const totalPages = Math.ceil(vocabularyList.length / state.itemsPerPage);
+      if (page >= 1 && page <= totalPages) {
+        if(state.recordingId) stopRecording();
+        state.currentPage = page;
+        renderApp();
+        window.scrollTo({ top: 0, behavior: 'smooth' }); // 換頁後滾動到頂部
+      }
+    }
+
+    // 語音合成 (TTS)
+    function playAudio(id) {
+      if (!window.speechSynthesis) {
+        alert("您的瀏覽器不支援語音發音功能");
+        return;
+      }
+
+      // 從列表中找尋單字，避免字串問題
+      const wordObj = vocabularyList.find(w => w.id === id);
+      if (!wordObj) return;
+
+      window.speechSynthesis.cancel();
+      const rate = document.getElementById('rate-slider').value;
+      const utterance = new SpeechSynthesisUtterance(wordObj.en);
+      utterance.lang = 'en-US';
+      utterance.rate = parseFloat(rate);
+      
+      // 嘗試尋找自然的英文語音
+      const voices = window.speechSynthesis.getVoices();
+      const engVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Google')) || voices.find(v => v.lang.startsWith('en-'));
+      if(engVoice) utterance.voice = engVoice;
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // 語速滑桿即時更新
+    document.getElementById('rate-slider').addEventListener('input', (e) => {
+      document.getElementById('rate-display').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
+    });
+
+    function startRecording(id) {
+      if (!recognition) {
+        alert("您的瀏覽器不支援語音辨識功能，請使用 Chrome 電腦版。");
+        return;
+      }
+
+      const wordObj = vocabularyList.find(w => w.id === id);
+      if (!wordObj) return;
+
+      if (state.recordingId) {
+        recognition.stop(); // 先停止之前的錄音
+      }
+
+      state.recordingId = id;
+      currentTargetText = wordObj.en; // 儲存目標比對字串
+      renderApp(); // 重新渲染觸發紅框脈衝動畫
+      
+      try {
+        recognition.start();
+      } catch (e) {
+        console.error(e);
+        stopRecording();
+      }
+    }
+
+    function stopRecording() {
+      if (recognition && state.recordingId) {
+        recognition.stop();
+      }
+      state.recordingId = null;
+      renderApp();
+    }
+
+    function handleRecognitionResult(event) {
+      const transcript = event.results[0][0].transcript;
+      
+      // 正規化比對 (轉小寫、去除標點符號與空白)
+      const cleanTarget = currentTargetText.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanSpoken = transcript.toLowerCase().replace(/[^a-z0-9]/g, '');
+      
+      const isCorrect = (cleanTarget === cleanSpoken);
+      
+      state.total++;
+      if (isCorrect) {
+        state.correct++;
+        state.results[state.recordingId] = 'correct';
+      } else {
+        state.wrong++;
+        state.results[state.recordingId] = 'wrong';
+      }
+      
+      updateDashboard();
+      state.recordingId = null; // 停止錄音狀態
+      renderApp();
+    }
+
+    function handleRecognitionError(event) {
+      console.warn("語音辨識發生錯誤: ", event.error);
+      if(state.recordingId) {
+        state.results[state.recordingId] = 'wrong'; // 發生錯誤也算失敗
+      }
+      state.recordingId = null;
+      renderApp();
+    }
+
+    function handleRecognitionEnd() {
+      if(state.recordingId) {
+        state.recordingId = null;
+        renderApp();
+      }
+    }
+
+    function resetStats() {
+      state.total = 0;
+      state.correct = 0;
+      state.wrong = 0;
+      state.results = {};
+      updateDashboard();
+      renderApp();
+    }
+
+    window.onload = () => {
+      // 提早請求語音包清單以減少首次點擊發音的延遲
+      if(window.speechSynthesis) window.speechSynthesis.getVoices();
+      
+      initSpeechRecognition();
+      updateDashboard();
+      renderApp();
+    };
+  </script>
+</body>
+</html>
